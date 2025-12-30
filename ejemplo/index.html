@@ -61,7 +61,7 @@
             <div class="mb-3">
                 <label class="form-label">Verificación</label>
                 <div class="d-flex gap-2 mb-2">
-                    <img id="captcha-image" src="../generate_captcha.php" alt="Captcha" class="border rounded" style="width: 250px; height: 80px;">
+                    <img id="captcha-image" src="generate_captcha.php" alt="Captcha" class="border rounded" style="width: 250px; height: 80px;">
                     <button type="button" class="btn btn-secondary" onclick="recargarCaptcha()">
                         <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
                             <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
@@ -125,7 +125,7 @@
         }
 
         function cargarOpcionesEmoji() {
-            fetch('../get_emoji_options.php')
+            fetch('get_emoji_options.php')
                 .then(response => response.json())
                 .then(data => {
                     if (data.success && data.options) {
@@ -139,7 +139,7 @@
                             div.onclick = function() { seleccionarEmoji(this); };
                             
                             const img = document.createElement('img');
-                            img.src = '../' + option.image;
+                            img.src = option.image;
                             img.style.width = '50px';
                             img.style.height = '50px';
                             
@@ -180,7 +180,7 @@
             submitBtn.textContent = 'Verificando...';
             
             // Verificar captcha
-            fetch('../verify_captcha.php', {
+            fetch('verify_captcha.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: 'emoji=' + encodeURIComponent(emojiSeleccionado)

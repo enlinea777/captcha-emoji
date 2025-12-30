@@ -25,7 +25,11 @@ captcha_system/
 └── LICENSE                    # MIT con atribución obligatoria
 ```
 
+## Demo enlinea
+- **Website**: https://www.escuelapintamonos.cl/captcha_system/ejemplo
+
 ## 🎯 Demo Rápida
+
 
 Abre `ejemplo/index.html` en tu servidor PHP para ver el sistema funcionando.
 
@@ -289,7 +293,7 @@ Ver [LICENSE](LICENSE) para términos completos de la licencia.
 
 - **Autor**: Escuela Pintamonos Development Team
 - **Website**: https://www.escuelapintamonos.cl/
-- **Email**: contacto@escuelapintamonos.cl
+- **Email**: enlinea777@gmail.com
 - **GitHub**: https://github.com/enlinea777/captcha-emoji
 
 ---
