@@ -116,7 +116,7 @@
         });
 
         function cargarCaptcha() {
-            document.getElementById('captcha-image').src = '../generate_captcha.php?' + new Date().getTime();
+            document.getElementById('captcha-image').src = 'generate_captcha.php?' + new Date().getTime();
             document.getElementById('captcha-input').value = '';
             document.getElementById('emoji-error').classList.add('d-none');
             emojiSeleccionado = null;
