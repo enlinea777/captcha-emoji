@@ -1,4 +1,4 @@
-# Sistema de Captcha con Emojis - Altamente Ofuscado
+# Sistema de Captcha + Emojis - challenge efímero de alta entropía
 
 Sistema portable y profesional de validación humana con máxima seguridad contra bots.
 
