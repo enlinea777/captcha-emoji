@@ -29,4 +29,4 @@ Ver [../README.md](../README.md) para documentación completa.
 Este ejemplo está bajo la misma licencia que el sistema principal.
 Ver [../LICENSE](../LICENSE) para detalles.
 
-**Atribución obligatoria**: https://github.com/escuelapintamonos/captcha-emoji
+**Atribución obligatoria**: https://github.com/enlinea777/captcha-emoji

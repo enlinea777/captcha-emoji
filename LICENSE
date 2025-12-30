@@ -17,7 +17,7 @@ furnished to do so, subject to the following conditions:
    ANY USE OF THIS SOFTWARE, WHETHER IN SOURCE OR BINARY FORM, MUST INCLUDE
    A VISIBLE REFERENCE TO THE ORIGINAL SOURCE:
    
-   - In web applications: A link to "https://github.com/escuelapintamonos/captcha-emoji"
+   - In web applications: A link to "https://github.com/enlinea777/captcha-emoji"
      or "https://www.escuelapintamonos.cl/" must be displayed in a visible location
      (footer, about page, or credits section).
    
@@ -47,6 +47,7 @@ SOFTWARE.
 
 ATTRIBUTION EXAMPLES:
 
+HTML/Web:
 HTML/Web:
 <p>Powered by <a href="https://github.com/enlinea777/captcha-emoji">CaptchaEmoji System</a></p>
 

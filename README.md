@@ -4,6 +4,8 @@ Sistema portable y profesional de validación humana con máxima seguridad contr
 
 **⚠️ IMPORTANTE**: Este software requiere atribución obligatoria. Ver [LICENSE](LICENSE) para detalles.
 
+**GitHub**: https://github.com/enlinea777/captcha-emoji
+
 ## 📁 Estructura
 
 ```
