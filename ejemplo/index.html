@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ejemplo Captcha System</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- SweetAlert2 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+    
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .form-container {
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            max-width: 500px;
+            width: 100%;
+        }
+        .emoji-option {
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .emoji-option:hover {
+            transform: scale(1.1);
+        }
+        .emoji-selected {
+            border-color: #667eea !important;
+            background-color: #f0f0ff !important;
+        }
+        #captcha-text-container {
+            display: block;
+        }
+        #captcha-emoji-container {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <h2 class="text-center mb-4">Formulario con Captcha</h2>
+        
+        <form id="formulario" onsubmit="return enviarFormulario(event)">
+            <!-- Nombre -->
+            <div class="mb-3">
+                <label class="form-label">Nombre</label>
+                <input type="text" class="form-control" id="nombre" required>
+            </div>
+            
+            <!-- Captcha -->
+            <div class="mb-3">
+                <label class="form-label">Verificación</label>
+                <div class="d-flex gap-2 mb-2">
+                    <img id="captcha-image" src="../generate_captcha.php" alt="Captcha" class="border rounded" style="width: 250px; height: 80px;">
+                    <button type="button" class="btn btn-secondary" onclick="recargarCaptcha()">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                            <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+                            <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Input texto (trampa para bots) -->
+                <div id="captcha-text-container">
+                    <label class="form-label" id="captcha-label">Ingresa el código</label>
+                    <input type="text" class="form-control" id="captcha-input" autocomplete="off" maxlength="5">
+                </div>
+                
+                <!-- Selección emoji (real) -->
+                <div id="captcha-emoji-container">
+                    <div id="emoji-options" class="d-flex gap-2"></div>
+                    <small class="text-danger d-none" id="emoji-error"></small>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary w-100" id="submit-btn">Enviar</button>
+        </form>
+        
+        <p class="text-center mt-3 text-muted small">
+            Powered by <a href="https://github.com/escuelapintamonos/captcha-emoji" target="_blank">CaptchaEmoji System</a>
+        </p>
+    </div>
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- SweetAlert2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <script>
+        let emojiSeleccionado = null;
+
+        // Cargar captcha al inicio
+        document.addEventListener('DOMContentLoaded', function() {
+            cargarCaptcha();
+            
+            // Ofuscar después de 300ms
+            setTimeout(function() {
+                document.getElementById('captcha-text-container').style.display = 'none';
+                document.getElementById('captcha-emoji-container').style.display = 'block';
+                document.getElementById('captcha-label').innerHTML = 'Selecciona el emoji que ves';
+            }, 300);
+        });
+
+        function cargarCaptcha() {
+            document.getElementById('captcha-image').src = '../generate_captcha.php?' + new Date().getTime();
+            document.getElementById('captcha-input').value = '';
+            document.getElementById('emoji-error').classList.add('d-none');
+            emojiSeleccionado = null;
+            
+            setTimeout(cargarOpcionesEmoji, 500);
+        }
+
+        function cargarOpcionesEmoji() {
+            fetch('../get_emoji_options.php')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.options) {
+                        const container = document.getElementById('emoji-options');
+                        container.innerHTML = '';
+                        
+                        data.options.forEach(option => {
+                            const div = document.createElement('div');
+                            div.className = 'emoji-option border rounded p-2';
+                            div.dataset.emojiHash = option.hash;
+                            div.onclick = function() { seleccionarEmoji(this); };
+                            
+                            const img = document.createElement('img');
+                            img.src = '../' + option.image;
+                            img.style.width = '50px';
+                            img.style.height = '50px';
+                            
+                            div.appendChild(img);
+                            container.appendChild(div);
+                        });
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function seleccionarEmoji(elemento) {
+            document.querySelectorAll('.emoji-option').forEach(el => {
+                el.classList.remove('emoji-selected');
+            });
+            elemento.classList.add('emoji-selected');
+            emojiSeleccionado = elemento.dataset.emojiHash;
+            document.getElementById('emoji-error').classList.add('d-none');
+        }
+
+        function recargarCaptcha() {
+            cargarCaptcha();
+        }
+
+        function enviarFormulario(event) {
+            event.preventDefault();
+            
+            const nombre = document.getElementById('nombre').value;
+            const submitBtn = document.getElementById('submit-btn');
+            
+            if (!emojiSeleccionado) {
+                document.getElementById('emoji-error').textContent = 'Selecciona el emoji';
+                document.getElementById('emoji-error').classList.remove('d-none');
+                return false;
+            }
+            
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Verificando...';
+            
+            // Verificar captcha
+            fetch('../verify_captcha.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'emoji=' + encodeURIComponent(emojiSeleccionado)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Hola ' + nombre + '!',
+                        text: 'Verificación exitosa',
+                        confirmButtonColor: '#667eea'
+                    }).then(() => {
+                        document.getElementById('formulario').reset();
+                        recargarCaptcha();
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: data.message || 'Captcha inválido',
+                        confirmButtonColor: '#667eea'
+                    });
+                    recargarCaptcha();
+                }
+            })
+            .catch(error => {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Error de conexión',
+                    confirmButtonColor: '#667eea'
+                });
+            })
+            .finally(() => {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Enviar';
+            });
+            
+            return false;
+        }
+    </script>
+</body>
+</html>
