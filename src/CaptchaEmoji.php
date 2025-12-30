@@ -39,6 +39,9 @@ class CaptchaEmoji {
      * @return void (genera imagen PNG)
      */
     public function generate($width = 250, $height = 80) {
+        // Delay aleatorio anti-timing attack (500-1000 ms)
+        usleep(rand(500000, 1000000));
+        
         // Generar código aleatorio de 5 caracteres
         $code = $this->generateRandomCode(5);
         
@@ -87,10 +90,20 @@ class CaptchaEmoji {
         $emoji_file = $this->selectRandomEmoji();
         $this->overlayEmoji($image, $emoji_file, $width, $height);
         
-        // Guardar información en sesión
+        // Generar salt aleatorio único para esta sesión
+        $salt = $this->generateSalt(rand(256, 512));
+        
+        // Crear identificador único para este emoji (sin exponer el nombre del archivo)
+        $emoji_identifier = basename($emoji_file, '.png');
+        
+        // Generar hash con bcrypt (imposible de revertir)
+        $emoji_hash = password_hash($emoji_identifier . $salt, PASSWORD_BCRYPT,['cost' => 12]);
+        
+        // Guardar información en sesión (el salt y el identificador se mantienen en el servidor)
         $_SESSION[$this->sessionPrefix . 'code'] = $code;
-        $_SESSION[$this->sessionPrefix . 'emoji_file'] = basename($emoji_file);
-        $_SESSION[$this->sessionPrefix . 'emoji_hash'] = hash('sha256', basename($emoji_file) . session_id());
+        $_SESSION[$this->sessionPrefix . 'emoji_identifier'] = $emoji_identifier;
+        $_SESSION[$this->sessionPrefix . 'salt'] = $salt;
+        $_SESSION[$this->sessionPrefix . 'emoji_hash'] = $emoji_hash;
         $_SESSION[$this->sessionPrefix . 'time'] = time();
         
         // Enviar headers y output
@@ -107,11 +120,11 @@ class CaptchaEmoji {
      */
     public function getEmojiOptions() {
         // Verificar que exista un emoji en sesión
-        if (!isset($_SESSION[$this->sessionPrefix . 'emoji_file'])) {
+        if (!isset($_SESSION[$this->sessionPrefix . 'emoji_identifier']) || !isset($_SESSION[$this->sessionPrefix . 'salt'])) {
             return ['success' => false, 'message' => 'No hay captcha activo'];
         }
         
-        $correct_emoji = $_SESSION[$this->sessionPrefix . 'emoji_file'];
+        $correct_emoji = $_SESSION[$this->sessionPrefix . 'emoji_identifier'] . '.png';
         $correct_hash = $_SESSION[$this->sessionPrefix . 'emoji_hash'];
         
         // Obtener todos los emojis disponibles
@@ -159,8 +172,18 @@ class CaptchaEmoji {
         }, glob($this->emojisPath . '*.png'));
         
         foreach ($options as $index => $emoji_file) {
-            // Hash ofuscado basado en archivo + sesión
-            $emoji_hash = hash('sha256', $emoji_file . session_id());
+            // Obtener identificador del emoji (sin extensión)
+            $emoji_identifier = pathinfo($emoji_file, PATHINFO_FILENAME);
+            
+            // Si es el emoji correcto, usar el hash guardado en sesión
+            // Si no, generar hash diferente (distractor)
+            if ($emoji_identifier === $_SESSION[$this->sessionPrefix . 'emoji_identifier']) {
+                $emoji_hash = $correct_hash;
+            } else {
+                // Distractor: generar hash con salt diferente
+                $distractor_salt = $this->generateSalt(rand(256, 512));
+                $emoji_hash = password_hash($emoji_identifier . $distractor_salt, PASSWORD_BCRYPT, ['cost' => 12]);
+            }
             
             // OFUSCACIÓN MÁXIMA: Agregar nombre aleatorio de emoji al endpoint
             $random_emoji_name = $all_emoji_names[array_rand($all_emoji_names)];
@@ -242,7 +265,9 @@ class CaptchaEmoji {
         $response = ['success' => false, 'message' => '', 'field' => 'emoji'];
         
         // Verificar que existe el emoji en sesión
-        if (!isset($_SESSION[$this->sessionPrefix . 'emoji_hash']) || !isset($_SESSION[$this->sessionPrefix . 'time'])) {
+        if (!isset($_SESSION[$this->sessionPrefix . 'emoji_identifier']) || 
+            !isset($_SESSION[$this->sessionPrefix . 'salt']) || 
+            !isset($_SESSION[$this->sessionPrefix . 'time'])) {
             $response['message'] = 'Captcha expirado. Por favor, recarga el captcha.';
             return $response;
         }
@@ -254,10 +279,12 @@ class CaptchaEmoji {
             return $response;
         }
         
-        // Verificar SOLO el emoji (el código de texto se ignora)
-        $correct_emoji = $_SESSION[$this->sessionPrefix . 'emoji_hash'];
+        // Obtener el hash correcto guardado en sesión
+        $correct_hash = $_SESSION[$this->sessionPrefix . 'emoji_hash'];
         
-        if ($emoji_hash !== $correct_emoji) {
+        // Verificar SOLO el emoji comparando directamente el hash
+        // El cliente envía el hash que seleccionó de las opciones
+        if ($emoji_hash !== $correct_hash) {
             $response['message'] = 'Emoji incorrecto. Por favor, selecciona el emoji que ves en la imagen.';
             return $response;
         }
@@ -279,7 +306,8 @@ class CaptchaEmoji {
         unset($_SESSION[$this->sessionPrefix . 'code']);
         unset($_SESSION[$this->sessionPrefix . 'time']);
         unset($_SESSION[$this->sessionPrefix . 'emoji_hash']);
-        unset($_SESSION[$this->sessionPrefix . 'emoji_file']);
+        unset($_SESSION[$this->sessionPrefix . 'emoji_identifier']);
+        unset($_SESSION[$this->sessionPrefix . 'salt']);
         unset($_SESSION[$this->sessionPrefix . 'images_queue']);
     }
     
@@ -345,6 +373,13 @@ class CaptchaEmoji {
             throw new \Exception('No emoji files found');
         }
         return $emojis[array_rand($emojis)];
+    }
+    
+    /**
+     * Generar salt aleatorio para bcrypt
+     */
+    private function generateSalt($length = 32) {
+        return bin2hex(random_bytes($length));
     }
     
     /**
