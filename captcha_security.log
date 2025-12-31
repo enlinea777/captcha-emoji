@@ -1,0 +1,5 @@
+[2025-12-31 01:22:58] SUSPICIOUS: IP=unknown ACTION=generate MESSAGE='No user-agent' USER_AGENT='none'
+[2025-12-31 01:22:58] BLOCKED: IP=unknown ACTION=generate MESSAGE='Security check failed' USER_AGENT='none'
+[2025-12-31 01:42:56] SUCCESS: IP=127.0.0.1 ACTION=verify MESSAGE='Valid captcha' USER_AGENT='Mozilla/5.0 (X11; Linux x86_64; rv:145.0) Gecko/20100101 Firefox/145.0'
+[2025-12-31 01:43:06] SUCCESS: IP=127.0.0.1 ACTION=verify MESSAGE='Valid captcha' USER_AGENT='Mozilla/5.0 (X11; Linux x86_64; rv:145.0) Gecko/20100101 Firefox/145.0'
+[2025-12-31 01:43:12] SUCCESS: IP=127.0.0.1 ACTION=verify MESSAGE='Valid captcha' USER_AGENT='Mozilla/5.0 (X11; Linux x86_64; rv:145.0) Gecko/20100101 Firefox/145.0'
