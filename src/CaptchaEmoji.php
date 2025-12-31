@@ -170,6 +170,7 @@ class CaptchaEmoji {
         
         foreach ($options as $index => $emoji_file) {
             // Obtener identificador del emoji (sin extensión)
+            // $emoji_file puede ser con o sin extensión después del shuffle
             $emoji_identifier = pathinfo($emoji_file, PATHINFO_FILENAME);
             
             // Si es el emoji correcto, usar el token guardado
@@ -420,16 +421,130 @@ class CaptchaEmoji {
         
         imagecopyresampled($emoji_resized, $emoji, 0, 0, 0, 0, $new_size, $new_size, $emoji_width, $emoji_height);
         
+        // Aplicar transparencia al emoji (70-90% opacidad)
+        $opacity = rand(70, 90);
+        imagefilter($emoji_resized, IMG_FILTER_COLORIZE, 0, 0, 0, 127 - ($opacity * 127 / 100));
+        
         // Posición aleatoria que no se salga del recuadro
         $max_x = $width - $new_size - 10;
         $max_y = $height - $new_size - 10;
         $x = rand(10, max(10, $max_x));
         $y = rand(10, max(10, $max_y));
         
-        // Copiar emoji sobre la imagen base
+        // Copiar emoji sobre la imagen base con alpha blending
+        imagealphablending($base_image, true);
         imagecopy($base_image, $emoji_resized, $x, $y, 0, 0, $new_size, $new_size);
+        
+        // Agregar formas geométricas semitransparentes sobre el emoji
+        $this->addGeometricShapes($base_image, $width, $height);
+        
+        // Agregar sombra/silueta de emoji aleatorio
+        $this->addEmojiShadow($base_image, $width, $height);
         
         imagedestroy($emoji);
         imagedestroy($emoji_resized);
+    }
+    
+    /**
+     * Agregar sombra/silueta de emoji aleatorio (solo forma, sin color)
+     */
+    private function addEmojiShadow($base_image, $width, $height) {
+        // Seleccionar emoji aleatorio diferente
+        $shadow_emoji_file = $this->selectRandomEmoji();
+        $shadow_emoji = @imagecreatefrompng($shadow_emoji_file);
+        
+        if ($shadow_emoji === false) {
+            return;
+        }
+        
+        $emoji_width = imagesx($shadow_emoji);
+        $emoji_height = imagesy($shadow_emoji);
+        
+        // Tamaño aleatorio de la sombra (20-40 px)
+        $shadow_size = rand(20, 40);
+        $shadow_resized = imagecreatetruecolor($shadow_size, $shadow_size);
+        
+        // Preservar transparencia
+        imagealphablending($shadow_resized, false);
+        imagesavealpha($shadow_resized, true);
+        
+        imagecopyresampled($shadow_resized, $shadow_emoji, 0, 0, 0, 0, $shadow_size, $shadow_size, $emoji_width, $emoji_height);
+        
+        // Convertir a escala de grises
+        imagefilter($shadow_resized, IMG_FILTER_GRAYSCALE);
+        
+        // Aplicar alta transparencia para que sea sutil (85-110 = muy transparente)
+        $shadow_alpha = rand(85, 110);
+        imagefilter($shadow_resized, IMG_FILTER_COLORIZE, 0, 0, 0, $shadow_alpha);
+        
+        // Posición aleatoria
+        $shadow_x = rand(5, $width - $shadow_size - 5);
+        $shadow_y = rand(5, $height - $shadow_size - 5);
+        
+        // Copiar sombra sobre la imagen base
+        imagealphablending($base_image, true);
+        imagecopy($base_image, $shadow_resized, $shadow_x, $shadow_y, 0, 0, $shadow_size, $shadow_size);
+        
+        imagedestroy($shadow_emoji);
+        imagedestroy($shadow_resized);
+    }
+    
+    /**
+     * Agregar formas geométricas semitransparentes para dificultar reconocimiento
+     */
+    private function addGeometricShapes($image, $width, $height) {
+        // Número aleatorio de formas (mínimo 4, máximo 8)
+        $num_shapes = rand(4, 8);
+        
+        for ($i = 0; $i < $num_shapes; $i++) {
+            // Color aleatorio con transparencia (alpha 60-100 = semitransparente)
+            $red = rand(100, 255);
+            $green = rand(100, 255);
+            $blue = rand(100, 255);
+            $alpha = rand(60, 100); // Más alto = más transparente
+            $color = imagecolorallocatealpha($image, $red, $green, $blue, $alpha);
+            
+            // Tipo de forma aleatoria
+            $shape_type = rand(1, 4);
+            
+            switch ($shape_type) {
+                case 1: // Rectángulo
+                    $x1 = rand(0, $width - 30);
+                    $y1 = rand(0, $height - 20);
+                    $x2 = $x1 + rand(15, 40);
+                    $y2 = $y1 + rand(10, 30);
+                    imagefilledrectangle($image, $x1, $y1, $x2, $y2, $color);
+                    break;
+                    
+                case 2: // Elipse/Círculo
+                    $cx = rand(20, $width - 20);
+                    $cy = rand(20, $height - 20);
+                    $w = rand(15, 35);
+                    $h = rand(15, 35);
+                    imagefilledellipse($image, $cx, $cy, $w, $h, $color);
+                    break;
+                    
+                case 3: // Triángulo
+                    $x1 = rand(10, $width - 10);
+                    $y1 = rand(10, $height - 10);
+                    $x2 = $x1 + rand(-25, 25);
+                    $y2 = $y1 + rand(15, 35);
+                    $x3 = $x1 + rand(-25, 25);
+                    $y3 = $y1 + rand(-10, 10);
+                    $points = array($x1, $y1, $x2, $y2, $x3, $y3);
+                    imagefilledpolygon($image, $points, 3, $color);
+                    break;
+                    
+                case 4: // Línea gruesa semitransparente
+                    imagesetthickness($image, rand(2, 5));
+                    $x1 = rand(0, $width);
+                    $y1 = rand(0, $height);
+                    $x2 = rand(0, $width);
+                    $y2 = rand(0, $height);
+                    imageline($image, $x1, $y1, $x2, $y2, $color);
+                    imagesetthickness($image, 1); // Resetear grosor
+                    break;
+            }
+        }
     }
 }
