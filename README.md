@@ -41,6 +41,10 @@ captcha_system/
 
 ## 🎯 Demo Rápida
 
+instalar:
+```bash
+composer require enlinea777/captcha-emoji
+```
 
 Abre `ejemplo/index.html` en tu servidor PHP para ver el sistema funcionando.
 
