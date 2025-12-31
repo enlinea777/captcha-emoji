@@ -1,0 +1,72 @@
+{
+    "name": "enlinea777/captcha-emoji",
+    "description": "Sistema de captcha anti-bot de nivel militar con emojis, protección DDoS integrada y resistencia contra IA",
+    "type":  "library",
+    "keywords": [
+        "captcha",
+        "emoji",
+        "security",
+        "anti-bot",
+        "ddos-protection",
+        "fail2ban",
+        "anti-ai",
+        "spam-protection",
+        "rate-limiting",
+        "php-captcha"
+    ],
+    "homepage": "https://github.com/enlinea777/captcha-emoji",
+    "license":  "MIT",
+    "authors":  [
+        {
+            "name": "John Chacón",
+            "email": "enlinea777@gmail.com",
+            "homepage": "https://www.escuelapintamonos.cl",
+            "role": "Developer"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/enlinea777/captcha-emoji/issues",
+        "source": "https://github.com/enlinea777/captcha-emoji",
+        "docs": "https://github.com/enlinea777/captcha-emoji#readme"
+    },
+    "funding": [
+        {
+            "type":  "github",
+            "url":  "https://github.com/sponsors/enlinea777"
+        },
+        {
+            "type":  "custom",
+            "url": "https://www.paypal.me/escuelapintamonos"
+        }
+    ],
+    "require": {
+        "php": ">=7.4",
+        "ext-gd": "*",
+        "ext-session": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "CaptchaSystem\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "CaptchaSystem\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "check": [
+            "@test"
+        ]
+    },
+    "config": {
+        "sort-packages": true,
+        "optimize-autoloader": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable":  true
+}
