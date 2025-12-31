@@ -17,6 +17,8 @@ class CaptchaEmoji {
     private $fontsPath;
     private $emojisPath;
     private $sessionPrefix = 'captcha_';
+    private $logFile;
+    private $suspiciousAgents = ['curl', 'wget', 'python', 'bot', 'spider', 'crawler', 'scraper', 'headless'];
     
     /**
      * Constructor
@@ -30,6 +32,12 @@ class CaptchaEmoji {
         $this->basePath = rtrim($basePath ?: __DIR__ . '/../', '/') . '/';
         $this->fontsPath = $this->basePath . 'fonts/captcha/';
         $this->emojisPath = $this->basePath . 'emojis/';
+        $this->logFile = $this->basePath . 'captcha_security.log';
+        
+        // Inicializar contador de llamadas anti-timing
+        if (!isset($_SESSION[$this->sessionPrefix . 'timing_calls'])) {
+            $_SESSION[$this->sessionPrefix . 'timing_calls'] = 0;
+        }
     }
     
     /**
@@ -39,7 +47,15 @@ class CaptchaEmoji {
      * @return void (genera imagen PNG)
      */
     public function generate($width = 250, $height = 80) {
-        // Delay aleatorio anti-timing attack (500-1000 ms)
+        // Validaciones de seguridad
+        if (!$this->securityCheck('generate')) {
+            $this->antiTimingDelay(true); // Delay solo para bots
+            $this->logSecurityEvent('BLOCKED', 'generate', 'Security check failed');
+            header('HTTP/1.1 403 Forbidden');
+            exit('Access denied');
+        }
+        
+        // Delay normal para prevenir timing attacks (0.5-1s)
         usleep(rand(500000, 1000000));
         
         // Generar código aleatorio de 5 caracteres
@@ -260,11 +276,19 @@ class CaptchaEmoji {
     public function verify($emoji_token) {
         $response = ['success' => false, 'message' => '', 'field' => 'emoji'];
         
+        // Validaciones de seguridad
+        if (!$this->securityCheck('verify')) {
+            $this->antiTimingDelay(true); // Delay progresivo para bots
+            $this->logSecurityEvent('BLOCKED', 'verify', 'Security check failed');
+            $response['message'] = 'Acceso denegado.';
+            return $response;
+        }
+        
         // Verificar que existe el emoji en sesión
         if (!isset($_SESSION[$this->sessionPrefix . 'emoji_token']) || 
             !isset($_SESSION[$this->sessionPrefix . 'time'])) {
-            // Delay anti-timing para sesión inexistente
-            usleep(rand(1000, 10000));
+            usleep(rand(1000, 10000)); // Delay mínimo
+            $this->logSecurityEvent('FAIL', 'verify', 'Session expired or missing');
             $response['message'] = 'Captcha expirado. Por favor, recarga el captcha.';
             return $response;
         }
@@ -272,7 +296,8 @@ class CaptchaEmoji {
         // Verificar tiempo de expiración (10 minutos)
         if (time() - $_SESSION[$this->sessionPrefix . 'time'] > 600) {
             $this->clearSession();
-            usleep(rand(1000, 10000));
+            usleep(rand(1000, 10000)); // Delay mínimo
+            $this->logSecurityEvent('FAIL', 'verify', 'Captcha expired (timeout)');
             $response['message'] = 'Captcha expirado. Por favor, recarga el captcha.';
             return $response;
         }
@@ -283,7 +308,8 @@ class CaptchaEmoji {
         // Si supera 1 intento, invalidar inmediatamente
         if ($_SESSION[$this->sessionPrefix . 'attempts'] > 1) {
             $this->clearSession();
-            usleep(rand(1000, 10000));
+            $this->antiTimingDelay(true); // Delay progresivo por múltiples intentos
+            $this->logSecurityEvent('BLOCKED', 'verify', 'Too many attempts');
             $response['message'] = 'Demasiados intentos. Por favor, recarga el captcha.';
             return $response;
         }
@@ -293,9 +319,9 @@ class CaptchaEmoji {
         
         // Comparación directa de strings
         if ($emoji_token !== $correct_token) {
-            // Delay anti-timing para respuesta incorrecta (100-300ms)
-            usleep(rand(1000, 10000));
+            $this->antiTimingDelay(true); // Delay progresivo por fallo
             $this->clearSession();
+            $this->logSecurityEvent('FAIL', 'verify', 'Invalid token');
             $response['message'] = 'Emoji incorrecto. Por favor, recarga el captcha.';
             return $response;
         }
@@ -303,6 +329,9 @@ class CaptchaEmoji {
         // Todo correcto
         $response['success'] = true;
         $response['message'] = 'Captcha verificado correctamente';
+        
+        // Log de éxito
+        $this->logSecurityEvent('SUCCESS', 'verify', 'Valid captcha');
         
         // Limpiar sesión después de verificación (exitosa o fallida)
         $this->clearSession();
@@ -320,6 +349,7 @@ class CaptchaEmoji {
         unset($_SESSION[$this->sessionPrefix . 'emoji_identifier']);
         unset($_SESSION[$this->sessionPrefix . 'images_queue']);
         unset($_SESSION[$this->sessionPrefix . 'attempts']);
+        // NO limpiar timing_calls ni generate_count - se acumulan por sesión completa
     }
     
     // ========== MÉTODOS PRIVADOS ==========
@@ -356,6 +386,14 @@ class CaptchaEmoji {
         }
         
         return $available_fonts;
+    }
+    
+    /**
+     * Seleccionar una fuente TTF aleatoria
+     */
+    private function selectRandomFont() {
+        $fonts = $this->getAvailableFonts();
+        return $fonts[array_rand($fonts)];
     }
     
     /**
@@ -441,8 +479,133 @@ class CaptchaEmoji {
         // Agregar sombra/silueta de emoji aleatorio
         $this->addEmojiShadow($base_image, $width, $height);
         
+        // Agregar 2 emojis adicionales cortados en los bordes
+        $this->addOffsetEmojis($base_image, $width, $height);
+        
+        // Agregar códigos aleatorios en las 4 esquinas
+        $this->addCornerCodes($base_image, $width, $height);
+        
         imagedestroy($emoji);
         imagedestroy($emoji_resized);
+    }
+    
+    /**
+     * Agregar 2 emojis adicionales con diferentes tamaños y transparencias
+     * posicionados de forma "cortada" en los bordes (desfasados)
+     */
+    private function addOffsetEmojis($base_image, $width, $height) {
+        for ($i = 0; $i < 2; $i++) {
+            $emoji_file = $this->selectRandomEmoji();
+            $emoji = @imagecreatefrompng($emoji_file);
+            
+            if ($emoji === false) {
+                continue;
+            }
+            
+            $emoji_width = imagesx($emoji);
+            $emoji_height = imagesy($emoji);
+            
+            // Tamaño aleatorio variado (30-80px)
+            $new_size = rand(30, 80);
+            $emoji_resized = imagecreatetruecolor($new_size, $new_size);
+            
+            imagealphablending($emoji_resized, false);
+            imagesavealpha($emoji_resized, true);
+            
+            imagecopyresampled($emoji_resized, $emoji, 0, 0, 0, 0, $new_size, $new_size, $emoji_width, $emoji_height);
+            
+            // Transparencia aleatoria (40-80% opacidad)
+            $opacity = rand(40, 80);
+            imagefilter($emoji_resized, IMG_FILTER_COLORIZE, 0, 0, 0, 127 - ($opacity * 127 / 100));
+            
+            // Posición desfasada - siempre cortado en algún borde
+            $position_type = rand(1, 4);
+            
+            switch ($position_type) {
+                case 1: // Cortado arriba
+                    $x = rand(10, $width - $new_size - 10);
+                    $y = rand(-$new_size + 10, -10); // Parte superior cortada
+                    break;
+                    
+                case 2: // Cortado abajo
+                    $x = rand(10, $width - $new_size - 10);
+                    $y = rand($height - 10, $height + $new_size - 10); // Parte inferior cortada
+                    break;
+                    
+                case 3: // Cortado izquierda
+                    $x = rand(-$new_size + 10, -10); // Parte izquierda cortada
+                    $y = rand(10, $height - $new_size - 10);
+                    break;
+                    
+                case 4: // Cortado derecha
+                    $x = rand($width - 10, $width + $new_size - 10); // Parte derecha cortada
+                    $y = rand(10, $height - $new_size - 10);
+                    break;
+            }
+            
+            // Copiar emoji desfasado sobre la imagen base
+            imagealphablending($base_image, true);
+            imagecopy($base_image, $emoji_resized, $x, $y, 0, 0, $new_size, $new_size);
+            
+            imagedestroy($emoji);
+            imagedestroy($emoji_resized);
+        }
+    }
+    
+    /**
+     * Agregar códigos alfanuméricos aleatorios en esquinas aleatorias
+     * Similar a los códigos de emojis pero más cortos (4 caracteres)
+     */
+    private function addCornerCodes($base_image, $width, $height) {
+        // Todas las posiciones disponibles de las 4 esquinas
+        $all_positions = [
+            ['x' => 5, 'y' => 15, 'align' => 'left'],      // Superior izquierda
+            ['x' => $width - 5, 'y' => 15, 'align' => 'right'],   // Superior derecha
+            ['x' => 5, 'y' => $height - 5, 'align' => 'left'],    // Inferior izquierda
+            ['x' => $width - 5, 'y' => $height - 5, 'align' => 'right'] // Inferior derecha
+        ];
+        
+        // Mezclar las posiciones
+        shuffle($all_positions);
+        
+        // Siempre mostrar al menos 1 código (primera posición después del shuffle)
+        $selected_positions = [$all_positions[0]];
+        
+        // Caracteres hexadecimales para generar códigos similares a los tokens
+        $chars = '0123456789abcdef';
+        
+        foreach ($selected_positions as $pos) {
+            // Generar código aleatorio de 4 caracteres hexadecimales
+            $code = '';
+            for ($i = 0; $i < 4; $i++) {
+                $code .= $chars[rand(0, strlen($chars) - 1)];
+            }
+            
+            // Seleccionar fuente aleatoria
+            $font_file = $this->selectRandomFont();
+            
+            // Tamaño de fuente pequeño (6-8)
+            $font_size = rand(6, 8);
+            
+            // Color aleatorio con transparencia moderada
+            $red = rand(50, 200);
+            $green = rand(50, 200);
+            $blue = rand(50, 200);
+            $alpha = rand(40, 70); // Semi-transparente
+            $color = imagecolorallocatealpha($base_image, $red, $green, $blue, $alpha);
+            
+            // Calcular posición del texto según alineación
+            $bbox = imagettfbbox($font_size, 0, $font_file, $code);
+            $text_width = $bbox[2] - $bbox[0];
+            
+            $x = $pos['x'];
+            if ($pos['align'] === 'right') {
+                $x -= $text_width;
+            }
+            
+            // Dibujar el código
+            imagettftext($base_image, $font_size, 0, $x, $pos['y'], $color, $font_file, $code);
+        }
     }
     
     /**
@@ -546,5 +709,103 @@ class CaptchaEmoji {
                     break;
             }
         }
+    }
+    
+    /**
+     * Delay anti-timing progresivo basado en llamadas sospechosas acumuladas
+     * Solo se aplica cuando hay comportamiento sospechoso
+     * @param bool $isSuspicious Si es una llamada sospechosa (bot, fallo, múltiples intentos)
+     */
+    private function antiTimingDelay($isSuspicious = false) {
+        if (!$isSuspicious) {
+            // Delay mínimo para timing normal
+            usleep(rand(1000, 10000)); // 1-10ms
+            return;
+        }
+        
+        // Incrementar contador SOLO para llamadas sospechosas
+        $_SESSION[$this->sessionPrefix . 'timing_calls']++;
+        $calls = $_SESSION[$this->sessionPrefix . 'timing_calls'];
+        
+        // Límite de 10 captchas generados sin verificar = sospechoso
+        if (!isset($_SESSION[$this->sessionPrefix . 'generate_count'])) {
+            $_SESSION[$this->sessionPrefix . 'generate_count'] = 0;
+        }
+        
+        // Base: 100-500ms, se multiplica por cada fallo
+        // Fallo 1: 100-500ms
+        // Fallo 2: 1-5s
+        // Fallo 3: 10-50s
+        $base_min = 100000;  // 100ms
+        $base_max = 500000;  // 500ms
+        
+        if ($calls > 1) {
+            $multiplier = pow(10, min($calls - 1, 3)); // Max multiplicador: 1000
+            $delay_min = min($base_min * $multiplier, 10000000); // Max 10s
+            $delay_max = min($base_max * $multiplier, 50000000); // Max 50s
+        } else {
+            $delay_min = $base_min;
+            $delay_max = $base_max;
+        }
+        
+        usleep(rand($delay_min, $delay_max));
+    }
+    
+    /**
+     * Verificación de seguridad: honeypot + user-agent
+     * @param string $action Acción que se está ejecutando
+     * @return bool True si pasa las validaciones
+     */
+    private function securityCheck($action) {
+        // 1. Honeypot: campo 'website' no debe estar lleno
+        if (!empty($_POST['website'])) {
+            $this->logSecurityEvent('BOT', $action, 'Honeypot triggered');
+            return false;
+        }
+        
+        // 2. User-Agent analysis
+        $user_agent = strtolower($_SERVER['HTTP_USER_AGENT'] ?? '');
+        
+        // Si no tiene user-agent, es sospechoso
+        if (empty($user_agent)) {
+            $this->logSecurityEvent('SUSPICIOUS', $action, 'No user-agent');
+            return false;
+        }
+        
+        // Verificar agentes sospechosos
+        foreach ($this->suspiciousAgents as $agent) {
+            if (strpos($user_agent, $agent) !== false) {
+                $this->logSecurityEvent('BOT', $action, "Suspicious user-agent: $agent");
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Registrar evento de seguridad en log compatible con fail2ban
+     * @param string $level Nivel: SUCCESS, FAIL, BLOCKED, BOT, SUSPICIOUS
+     * @param string $action Acción ejecutada
+     * @param string $message Mensaje descriptivo
+     */
+    private function logSecurityEvent($level, $action, $message) {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? 'none';
+        $timestamp = date('Y-m-d H:i:s');
+        
+        // Formato compatible con fail2ban
+        $log_entry = sprintf(
+            "[%s] %s: IP=%s ACTION=%s MESSAGE='%s' USER_AGENT='%s'\n",
+            $timestamp,
+            $level,
+            $ip,
+            $action,
+            $message,
+            $user_agent
+        );
+        
+        // Escribir al archivo de log
+        @file_put_contents($this->logFile, $log_entry, FILE_APPEND | LOCK_EX);
     }
 }

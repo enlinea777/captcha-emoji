@@ -50,6 +50,30 @@
     <div class="form-container">
         <h2 class="text-center mb-4">Formulario con Captcha</h2>
         
+         <form id="captchaForm" style="display:none; position:absolute; left:-9999px;" >
+                    
+                    <div class="form-group">
+                        <label for="captchaText">
+                            Ingresa el código: <span class="required">*</span>
+                            <small style="color: #999;">(Este campo es una trampa anti-bots, ignóralo)</small>
+                        </label>
+                        <input type="text" 
+                               id="captchaText" 
+                               name="captchaText" 
+                               class="form-control" 
+                               placeholder="Ignora este campo"
+                               tabindex="-1"
+                               autocomplete="off">
+                    </div>
+                    
+                    <!-- Honeypot 2: Campo website oculto -->
+                    <input type="url" 
+                           name="website" 
+                           style="display:none; position:absolute; left:-9999px;" 
+                           tabindex="-1" 
+                           autocomplete="off">
+
+        </form> 
         <form id="formulario" onsubmit="return enviarFormulario(event)">
             <!-- Nombre -->
             <div class="mb-3">
